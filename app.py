@@ -5,7 +5,7 @@ import time
 # --- CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="ASB Automação Industrial", layout="wide", page_icon="⚙️")
 
-# URL do seu Firebase (ajustada para o seu projeto)
+# URL do seu Firebase
 URL_FB = "https://projeto-asb-comercial-default-rtdb.firebaseio.com/"
 
 # --- ESTILO CSS PARA OS BOTÕES E LEDS ---
@@ -14,32 +14,50 @@ st.markdown("""
     .stButton>button {
         width: 100%;
         height: 80px;
-        font-size: 20px;
-        font-weight: bold;
+        font-size: 20px !important;
+        font-weight: bold !important;
         border-radius: 10px;
     }
     .led-indicador {
-        height: 15px;
-        width: 15px;
+        height: 18px;
+        width: 18px;
         border-radius: 50%;
         display: inline-block;
         margin-right: 10px;
-        border: 1px solid #333;
+        vertical-align: middle;
+        border: 2px solid #333;
     }
-    .led-verde { background-color: #00FF00; box-shadow: 0 0 10px #00FF00; }
-    .led-cinza { background-color: #555; }
+    .led-verde { 
+        background-color: #00FF00; 
+        box-shadow: 0 0 10px #00FF00; 
+    }
+    .led-cinza { 
+        background-color: #444; 
+    }
+    .texto-botao {
+        font-size: 18px;
+        font-weight: bold;
+    }
     </style>
-    """, unsafe_allow_status_html=True)
+    """, unsafe_allow_html=True)
 
 # --- FUNÇÕES DE CONTROLE ---
 def enviar_comando(estado):
-    requests.put(f"{URL_FB}controle.json", json={"led": estado})
+    try:
+        requests.put(f"{URL_FB}controle.json", json={"led": estado})
+    except:
+        st.error("Erro ao conectar com o Firebase")
 
 def buscar_dados():
     try:
-        temp = requests.get(f"{URL_FB}sensor/valor.json").json()
-        status_led = requests.get(f"{URL_FB}controle/led.json").json()
-        return temp, status_led
+        # Busca temperatura e status do LED
+        temp_data = requests.get(f"{URL_FB}sensor/valor.json").json()
+        status_data = requests.get(f"{URL_FB}controle/led.json").json()
+        
+        # Garante que sempre teremos um valor exibível
+        temp = temp_data if temp_data is not None else "---"
+        status = status_data if status_data is not None else "OFF"
+        return temp, status
     except:
         return "---", "OFF"
 
@@ -51,39 +69,42 @@ st.subheader("Supervisório de Monitoramento Térmico")
 temperatura, status_atual = buscar_dados()
 
 # --- ÁREA DE INDICADORES (KPIs) ---
-col1, col2 = st.columns(2)
+col_metric1, col_metric2 = st.columns(2)
 
-with col1:
-    st.metric(label="Temperatura do Sensor", value=f"{temperatura} °C")
+with col_metric1:
+    st.metric(label="Temperatura Atual", value=f"{temperatura} °C")
 
-with col2:
+with col_metric2:
     status_texto = "OPERANDO" if status_atual == "ON" else "EM PAUSA"
     st.metric(label="Status do Sistema", value=status_texto)
 
 st.divider()
 
-# --- ÁREA DE COMANDO COM LEDS NOS BOTÕES ---
-st.write("### Painel de Controle")
+# --- ÁREA DE COMANDO COM LEDS INDICADORES ---
+st.write("### Painel de Controle de Operação")
 c1, c2 = st.columns(2)
 
-# Lógica dos LEDs (Bolinhas)
-led_on = '<span class="led-indicador led-verde"></span>' if status_atual == "ON" else '<span class="led-indicador led-cinza"></span>'
-led_off = '<span class="led-indicador led-verde"></span>' if status_atual == "OFF" else '<span class="led-indicador led-cinza"></span>'
+# Lógica das Bolinhas de LED
+if status_atual == "ON":
+    led_on_html = f'<div style="margin-bottom:10px;"><span class="led-indicador led-verde"></span><span class="texto-botao">SISTEMA ATIVO</span></div>'
+    led_off_html = f'<div style="margin-bottom:10px;"><span class="led-indicador led-cinza"></span><span class="texto-botao">DESATIVADO</span></div>'
+else:
+    led_on_html = f'<div style="margin-bottom:10px;"><span class="led-indicador led-cinza"></span><span class="texto-botao">DESATIVADO</span></div>'
+    led_off_html = f'<div style="margin-bottom:10px;"><span class="led-indicador led-verde"></span><span class="texto-botao">SISTEMA EM PAUSA</span></div>'
 
 with c1:
-    # Botão de Início
-    st.markdown(f"**{led_on} SISTEMA ATIVO**", unsafe_allow_html=True)
+    st.markdown(led_on_html, unsafe_allow_html=True)
     if st.button("INICIAR OPERAÇÃO (ON)"):
         enviar_comando("ON")
         st.rerun()
 
 with c2:
-    # Botão de Pausa
-    st.markdown(f"**{led_off} SISTEMA EM PAUSA**", unsafe_allow_html=True)
+    st.markdown(led_off_html, unsafe_allow_html=True)
     if st.button("PAUSAR OPERAÇÃO (OFF)"):
         enviar_comando("OFF")
         st.rerun()
 
 # --- ATUALIZAÇÃO AUTOMÁTICA ---
+# Delay menor para parecer mais tempo real (2 segundos)
 time.sleep(2)
 st.rerun()
