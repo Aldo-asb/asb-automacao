@@ -10,18 +10,19 @@ URL_FB = "https://projeto-asb-comercial-default-rtdb.firebaseio.com/"
 # --- FUNÇÕES ---
 def enviar_comando(estado):
     try:
-        # Envia o comando para a pasta controle
-        requests.put(f"{URL_FB}controle.json", json={"led": estado})
+        # Mantendo o padrão exato exigido pelo seu ESP32: LED:ON ou LED:OFF
+        comando_completo = f"LED:{estado}"
+        requests.put(f"{URL_FB}controle/led.json", json=comando_completo)
     except:
         pass
 
 def buscar_dados():
     try:
-        # Busca temperatura e status
         temp = requests.get(f"{URL_FB}sensor/valor.json").json()
-        controle = requests.get(f"{URL_FB}controle.json").json()
+        status_raw = requests.get(f"{URL_FB}controle/led.json").json()
         
-        status = controle.get('led', 'OFF') if controle else "OFF"
+        # Apenas remove o prefixo para mostrar no site de forma limpa
+        status = status_raw.replace("LED:", "") if status_raw else "OFF"
         return temp, status
     except:
         return "---", "OFF"
@@ -31,27 +32,26 @@ st.title("ASB AUTOMAÇÃO INDUSTRIAL")
 
 temperatura, status_atual = buscar_dados()
 
-# Mostra os dados de forma fixa para evitar o erro de 'removeChild'
-st.metric(label="Temperatura Atual", value=f"{temperatura} °C")
-st.write(f"Sistema está atualmente: **{status_atual}**")
+st.subheader(f"Temperatura: {temperatura} °C")
+st.write(f"Status Atual: **{status_atual}**")
 
 st.divider()
 
 col1, col2 = st.columns(2)
 
 with col1:
+    # Apenas o LED (emoji) dentro do botão conforme sua solicitação
     label_on = "🟢 INICIAR OPERAÇÃO" if status_atual == "ON" else "⚪ INICIAR OPERAÇÃO"
-    if st.button(label_on, key="btn_on"):
+    if st.button(label_on):
         enviar_comando("ON")
         st.rerun()
 
 with col2:
     label_off = "🔴 PAUSAR OPERAÇÃO" if status_atual == "OFF" else "⚪ PAUSAR OPERAÇÃO"
-    if st.button(label_off, key="btn_off"):
+    if st.button(label_off):
         enviar_comando("OFF")
         st.rerun()
 
-# --- ATUALIZAÇÃO AUTOMÁTICA SEGURA ---
-# Usamos um tempo um pouco maior (3 segundos) para não dar conflito no navegador
+# Atualização automática simples
 time.sleep(3)
 st.rerun()
