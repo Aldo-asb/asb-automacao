@@ -3,115 +3,87 @@ import requests
 import time
 
 # --- CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="ASB AUTOMAÇÃO", layout="wide")
+st.set_page_config(page_title="ASB Automação Industrial", layout="wide", page_icon="⚙️")
 
-# --- URL DO SEU GOOGLE FIREBASE ---
-URL_BASE = "https://projeto-asb-comercial-default-rtdb.firebaseio.com/"
-if not URL_BASE.endswith('/'): URL_BASE += '/'
+# URL do seu Firebase (ajustada para o seu projeto)
+URL_FB = "https://projeto-asb-comercial-default-rtdb.firebaseio.com/"
 
-# --- ESTILO PROFISSIONAL (CSS CUSTOMIZADO) ---
+# --- ESTILO CSS PARA OS BOTÕES E LEDS ---
 st.markdown("""
     <style>
-    /* Fundo principal */
-    .stApp { background-color: #0E1117; }
-    
-    /* Estilo do Card de Temperatura */
-    .temp-card {
-        background-color: #161B22;
-        border: 2px solid #30363D;
-        border-radius: 15px;
-        padding: 30px;
-        text-align: center;
-        box-shadow: 0px 4px 15px rgba(0,0,0,0.5);
-    }
-    
-    .temp-valor {
-        color: #00FF00;
-        font-size: 70px;
-        font-weight: bold;
-        font-family: 'Courier New', monospace;
-    }
-    
-    .temp-label {
-        color: #8B949E;
-        font-size: 20px;
-        text-transform: uppercase;
-        letter-spacing: 2px;
-    }
-
-    /* Botões Industriais */
-    div.stButton > button {
+    .stButton>button {
+        width: 100%;
         height: 80px;
-        font-size: 25px !important;
+        font-size: 20px;
         font-weight: bold;
         border-radius: 10px;
-        text-transform: uppercase;
     }
-    
-    /* Botão LIGAR (Verde) */
-    .stBtnLigar > div > button {
-        background-color: #238636 !important;
-        color: white !important;
-        border: none;
+    .led-indicador {
+        height: 15px;
+        width: 15px;
+        border-radius: 50%;
+        display: inline-block;
+        margin-right: 10px;
+        border: 1px solid #333;
     }
-    
-    /* Botão DESLIGAR (Vermelho) */
-    .stBtnDesligar > div > button {
-        background-color: #DA3633 !important;
-        color: white !important;
-        border: none;
-    }
+    .led-verde { background-color: #00FF00; box-shadow: 0 0 10px #00FF00; }
+    .led-cinza { background-color: #555; }
     </style>
-    """, unsafe_allow_html=True)
+    """, unsafe_allow_status_html=True)
 
-# --- CABEÇALHO ---
-st.markdown("<h1 style='text-align: center; color: white;'>ASB AUTOMAÇÃO INDUSTRIAL</h1>", unsafe_allow_html=True)
-st.markdown("<p style='text-align: center; color: #8B949E;'>SISTEMA DE MONITORAMENTO REMOTO IOT</p>", unsafe_allow_html=True)
-st.divider()
+# --- FUNÇÕES DE CONTROLE ---
+def enviar_comando(estado):
+    requests.put(f"{URL_FB}controle.json", json={"led": estado})
 
-# --- BUSCA DE DADOS ---
-try:
-    res = requests.get(f"{URL_BASE}sensor.json").json()
-    temp_valor = res.get("valor") or res.get("temperatura") or "00.0"
-except:
-    temp_valor = "ERR"
+def buscar_dados():
+    try:
+        temp = requests.get(f"{URL_FB}sensor/valor.json").json()
+        status_led = requests.get(f"{URL_FB}controle/led.json").json()
+        return temp, status_led
+    except:
+        return "---", "OFF"
 
-# --- LAYOUT PRINCIPAL ---
-col1, col2 = st.columns([1, 1], gap="large")
+# --- INTERFACE ---
+st.title("🏗️ ASB AUTOMAÇÃO INDUSTRIAL")
+st.subheader("Supervisório de Monitoramento Térmico")
+
+# Busca dados atuais
+temperatura, status_atual = buscar_dados()
+
+# --- ÁREA DE INDICADORES (KPIs) ---
+col1, col2 = st.columns(2)
 
 with col1:
-    # Card de Temperatura Profissional
-    st.markdown(f"""
-        <div class="temp-card">
-            <div class="temp-label">Temperatura do Processo</div>
-            <div class="temp-valor">{temp_valor}°C</div>
-            <div style='color: #58A6FF;'>● MONITORANDO EM TEMPO REAL</div>
-        </div>
-    """, unsafe_allow_html=True)
+    st.metric(label="Temperatura do Sensor", value=f"{temperatura} °C")
 
 with col2:
-    st.markdown("<p style='color: white; font-weight: bold;'>CONTROLE DE ATUADORES</p>", unsafe_allow_html=True)
-    
-    # Botão Ligar
-    st.markdown('<div class="stBtnLigar">', unsafe_allow_html=True)
-    if st.button("▶ INICIAR OPERAÇÃO (ON)", key="btn_on", use_container_width=True):
-        requests.put(f"{URL_BASE}controle.json", json={"led": "ON"})
-        st.toast("Comando ON enviado!")
-    st.markdown('</div>', unsafe_allow_html=True)
-    
-    st.write("") # Espaço
-
-    # Botão Desligar
-    st.markdown('<div class="stBtnDesligar">', unsafe_allow_html=True)
-    if st.button("⏹ PARADA DE EMERGÊNCIA (OFF)", key="btn_off", use_container_width=True):
-        requests.put(f"{URL_BASE}controle.json", json={"led": "OFF"})
-        st.toast("Comando OFF enviado!")
-    st.markdown('</div>', unsafe_allow_html=True)
+    status_texto = "OPERANDO" if status_atual == "ON" else "EM PAUSA"
+    st.metric(label="Status do Sistema", value=status_texto)
 
 st.divider()
-# Barra de status no rodapé
-st.markdown(f"<p style='text-align: right; color: #8B949E;'>Sincronizado com Firebase: {time.strftime('%H:%M:%S')}</p>", unsafe_allow_html=True)
 
-# Auto-refresh simples (Opcional: atualiza a cada 5 segundos se quiser)
-# time.sleep(5)
-# st.rerun()
+# --- ÁREA DE COMANDO COM LEDS NOS BOTÕES ---
+st.write("### Painel de Controle")
+c1, c2 = st.columns(2)
+
+# Lógica dos LEDs (Bolinhas)
+led_on = '<span class="led-indicador led-verde"></span>' if status_atual == "ON" else '<span class="led-indicador led-cinza"></span>'
+led_off = '<span class="led-indicador led-verde"></span>' if status_atual == "OFF" else '<span class="led-indicador led-cinza"></span>'
+
+with c1:
+    # Botão de Início
+    st.markdown(f"**{led_on} SISTEMA ATIVO**", unsafe_allow_html=True)
+    if st.button("INICIAR OPERAÇÃO (ON)"):
+        enviar_comando("ON")
+        st.rerun()
+
+with c2:
+    # Botão de Pausa
+    st.markdown(f"**{led_off} SISTEMA EM PAUSA**", unsafe_allow_html=True)
+    if st.button("PAUSAR OPERAÇÃO (OFF)"):
+        enviar_comando("OFF")
+        st.rerun()
+
+# --- ATUALIZAÇÃO AUTOMÁTICA ---
+time.sleep(2)
+st.rerun()
